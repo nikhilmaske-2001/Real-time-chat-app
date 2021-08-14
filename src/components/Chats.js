@@ -1,4 +1,5 @@
-import React from 'react';
+import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 import { ChatEngine } from "react-chat-engine";
 import { useHistory } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,13 +8,59 @@ import { auth } from '../firebase';
 const Chats = () => {
     const history = useHistory();
     const {user} = useAuth();
+    const [loading, setLoading] = useState(true);
 
+    console.log(user);
 
     const handleLogout = async () => {
         await auth.signOut();
 
         history.push("/");
     }
+
+    const getFile = async(url) => {
+        const response = await fetch(url);
+        const data = await response.blob();
+
+        return new File([data], "userPhoto.jpg", {type: "image/jpeg"});
+    }
+
+    useEffect(() => {
+        if(!user) {
+            history.push("/");
+            return;
+        }
+        axios.get("https://api.chatengine.io/users/me", {
+            headers: {
+                "project-id": "1c0f3ab0-e5a0-434f-8258-4b6ec6653416",
+                "user-name": user.email,
+                "user-secret": user.uid,
+            }
+        })
+        .then(() => {
+            setLoading(false);
+        })
+        .catch(() => {
+            let formData = new FormData();
+            formData.append("email", user.email);
+            formData.append("username", user.email);
+            formData.append("secret", user.uid);
+
+            getFile(user.photoURL)
+            .then((avatar) => {
+                formData.append("avatar", avatar, avatar.name);
+
+                axios.post("https://api.chatengine.io/users/",
+                formData,
+                {headers: {"private-key": "98ece80d-98aa-4f7f-95de-1cbaa0d8ace8"}})
+                .then(() => setLoading(false))
+                .catch((error) => console.log(error));
+            });
+        });
+    }, [user, history]);
+
+    if(!user || loading) return "Loading...";
+
     return (
         <div className="chats-page">
             <div className="nav-bar">
@@ -26,9 +73,9 @@ const Chats = () => {
             </div>
             <ChatEngine
                 height="calc(100vh - 66px)"
-                projectId="1c0f3ab0-e5a0-434f-8258-4b6ec6653416"
-                userName="."
-                userScreen="."
+                projectID="1c0f3ab0-e5a0-434f-8258-4b6ec6653416"
+                userName={user.email}
+                userScreen={user.uid}
             />
         </div>
     );
